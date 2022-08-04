@@ -190,6 +190,11 @@ const config = new Schema({
 		required: true,
 		default: {}
 	},
+	categories: {
+		type: Schema.Types.Mixed,
+		required: true,
+		default: {}
+	},
 	notificationRole: {
 		type: String
 	},
@@ -254,6 +259,29 @@ const config = new Schema({
 				type: String,
 				required: true,
 				default: COLORS.YELLOW
+			}
+		},
+		reply: {
+			color: {
+				type: String,
+				required: true,
+				default: COLORS.GREEN
+			}
+		},
+		userReply: {
+			footer: {
+				type: String,
+				required: true,
+				default: 'You will receive a message soon.',
+				maxlength: 2048
+			},
+			footerImageURL: {
+				type: String
+			},
+			color: {
+				type: String,
+				required: true,
+				default: COLORS.RED
 			}
 		},
 		closure: {

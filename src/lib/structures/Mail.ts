@@ -5,12 +5,14 @@ import { readdir } from 'fs';
 import { join } from 'path';
 import Command from './Command';
 import Mongo from '../../database/Mongo';
+import { IConfig } from '../types/Database';
+import {COLORS} from "../../Constants";
 
 class Mail extends EventEmitter {
 	bot: Client;
 	closingThreads: boolean;
-	commands: Map<string, Command>
-	aliases: Map<string, string>
+	commands: Map<string, Command>;
+	aliases: Map<string, string>;
 	utils = new UtilsManager(this);
 	db = Mongo.getDatabase(this);
 	constructor(private readonly token: string) {
@@ -18,6 +20,7 @@ class Mail extends EventEmitter {
 		this.token = token;
 		this.closingThreads = false;
 		this.bot = new Client(this.token, {
+			intents: 130815,
 			disableEvents: {
 				TYPING_START: true
 			},
@@ -83,7 +86,8 @@ class Mail extends EventEmitter {
 					props.options.aliases.forEach((alias) => {
 						this.aliases.set(alias, props.name);
 					});
-				} catch (e) {
+				} catch (e: unknown) {
+					// @ts-ignore
 					console.warn(`[Command Handler] Command ${file} failed to load.\nStack Trace: ${e.stack.split('\n', 5).join('\n')}`);
 				}
 			});
@@ -96,6 +100,46 @@ class Mail extends EventEmitter {
 	closingThreadsFunc(status: boolean): void {
 		this.closingThreads = status;
 	}
+
+	// Fix possible DB incompatibilities.
+	fixCompatibility() {
+		this.db.getConfig()
+			.then((config) => {
+				if (!config) return;
+				const updates: Partial<IConfig> = {};
+				// Categories update.
+				if (!config.categories) updates.categories = {};
+
+				// Customizable replies update.
+				if (!config.embeds.reply && !config.embeds.userReply)
+					Object.defineProperty(updates, 'embeds', {
+						value: Object.assign(config.embeds, {
+							reply: { color: COLORS.GREEN },
+							userReply: { footer: 'You will receive a message soon.', color: COLORS.RED }}),
+						enumerable: true
+					});
+				else {
+					if (!config.embeds.reply) Object.defineProperty(updates, 'embeds', {
+						value: Object.assign(config.embeds,{
+							reply: { color: COLORS.GREEN }}),
+						enumerable: true
+					});
+					if (!config.embeds.userReply)
+						Object.defineProperty(updates, 'embeds', {
+							value: Object.assign(config.embeds,{
+								userReply: { color: COLORS.RED, footer: 'You will receive a message soon.' }}),
+							enumerable: true
+						});
+				}
+
+				if (Object.keys(updates).length > 0)
+					this.db.updateCompatibility(updates)
+						.then((response) => {
+							console.log(response ? 'Fixed DB compatibility issues.' : 'There was an error fixing DB compatibility errors.');
+						});
+			});
+	}
+
 }
 
 export default Mail;

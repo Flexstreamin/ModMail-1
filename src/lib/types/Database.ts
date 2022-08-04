@@ -77,10 +77,13 @@ interface IConfig {
 	};
 	commandsPermissions: Record<string, string[]>;
 	aliases: Record<string, string>;
+	categories: Record<string, string>;
 	notificationRole?: string;
 	embeds: {
 		creation: IEmbed;
 		contact: IEmbed
+		reply: { color: string };
+		userReply: { footer: string; footerImageURL: string; color: string };
 		closure: IEmbed;
 		staff: IStaffEmbed;
 	};

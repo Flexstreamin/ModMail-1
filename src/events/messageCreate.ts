@@ -1,7 +1,7 @@
 import Mail from '../lib/structures/Mail';
 import MessageEmbed from '../lib/structures/MessageEmbed';
 import Axios from 'axios';
-import {CategoryChannel, Message, MessageFile, TextChannel} from 'eris';
+import {CategoryChannel, Message, FileContent, TextChannel} from 'eris';
 import { COLORS } from '../Constants';
 import { LogDocument } from '../lib/types/Database';
 
@@ -16,7 +16,7 @@ export default async (caller: Mail, msg: Message): Promise<unknown> => {
 			permissionOverwrites: [
 				{
 					id: process.env.MAIN_GUILD_ID!,
-					type: 'role',
+					type: 0,
 					allow: 0,
 					deny: 1024 // Read messages & View channel. This means only admins can see the category the first time.
 				}
@@ -48,14 +48,14 @@ export default async (caller: Mail, msg: Message): Promise<unknown> => {
 	let log: LogDocument | null | false;
 
 	// If message is in DMs and is not by a bot.
-	if (msg.channel.type === 1) {
+	if (!msg.guildID) {
 		// Check if the user is blacklisted.
 		if (config.blacklist.includes(msg.author.id)) return;
 
 		log = await caller.db.getLog(msg.author.id, 'USER');
 
 		// Checks for any images sent.
-		const files: MessageFile[] = [];
+		const files: FileContent[] = [];
 		if (msg.attachments.length > 0) for (const file of msg.attachments) await Axios.get<Buffer>(file.url, { responseType: 'arraybuffer' })
 			.then((response) => files.push({ file: response.data, name: file.filename }))
 			.catch(() => false);
@@ -75,7 +75,7 @@ export default async (caller: Mail, msg: Message): Promise<unknown> => {
 					const guildMember = guild.members.get(msg.author.id);
 					if (!guildMember)
 						return caller.utils.discord.createMessage(msg.author.id, 'Your account has not been in the server long enough to contact the staff.', true);
-					if (config.guildAge > (Date.now() - guildMember.joinedAt))
+					if (config.guildAge > (Date.now() - guildMember.joinedAt!))
 						return caller.utils.discord.createMessage(msg.author.id, 'Your account has not been in the server long enough to contact the staff.', true);
 				}
 			}
@@ -106,11 +106,17 @@ export default async (caller: Mail, msg: Message): Promise<unknown> => {
 				}
 			});
 
+			if (!log)
+				return caller.utils.discord.createMessage(msg.author.id, 'Sorry, an error related to the DB has occurred when opening your thread. Please, contact an administrator.', true);
+
 			// Sends messages both to the user and the staff.
 			const userOpenEmbed = new MessageEmbed()
 				.setTitle(config.embeds.creation.title)
 				.setColor(config.embeds.creation.color)
-				.setDescription(config.embeds.creation.description)
+				.setDescription(config.embeds.creation.description
+					.replace('$logID', log.id)
+					.replace('$member', msg.author.username)
+				)
 				.setFooter(config.embeds.creation.footer, config.embeds.creation.footerImageURL)
 				.setTimestamp();
 			if (config.embeds.creation.thumbnail)
@@ -200,18 +206,18 @@ export default async (caller: Mail, msg: Message): Promise<unknown> => {
 		cmd = caller.commands.get(config.aliases[command]);
 
 	// If no command is found, try to look for a snippet.
-	if (!cmd && log && config.snippets && config.snippets[command] && category.channels.has(msg.channel.id)) {
+	if (!cmd && log && config.snippets && config.snippets[command]) {
 		if (!caller.utils.misc.checkPermissions(msg.member!, 'snippet', config))
 			return caller.utils.discord.createMessage(msg.channel.id, 'Invalid permissions.');
 
 		const snippet = config.snippets[command];
 		const userEmbed = new MessageEmbed()
-			.setAuthor(snippet.anonymous ? 'Staff Reply' : `${msg.author.username}#${msg.author.discriminator}`, snippet.anonymous ? (msg.channel as TextChannel).guild.dynamicIconURL() : msg.author.dynamicAvatarURL())
+			.setAuthor(snippet.anonymous ? 'Staff Reply' : `${msg.author.username}#${msg.author.discriminator}`, snippet.anonymous ? (msg.channel as TextChannel).guild.dynamicIconURL() || undefined : msg.author.dynamicAvatarURL())
 			.setColor(COLORS.RED)
 			.setDescription(snippet.content)
 			.setTimestamp();
 		const channelEmbed = new MessageEmbed()
-			.setAuthor(snippet.anonymous ? 'Staff Reply' : `${msg.author.username}#${msg.author.discriminator}`, snippet.anonymous ? (msg.channel as TextChannel).guild.dynamicIconURL() : msg.author.dynamicAvatarURL())
+			.setAuthor(snippet.anonymous ? 'Staff Reply' : `${msg.author.username}#${msg.author.discriminator}`, snippet.anonymous ? (msg.channel as TextChannel).guild.dynamicIconURL() || undefined : msg.author.dynamicAvatarURL())
 			.setColor(COLORS.LIGHT_BLUE)
 			.setDescription(snippet.content)
 			.setTimestamp();
